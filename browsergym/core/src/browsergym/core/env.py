@@ -284,7 +284,9 @@ class BrowserEnv(gym.Env, ABC):
             no_viewport=True if self.resizeable_window else None,
             viewport=viewport if not self.resizeable_window else None,
             record_video_dir=(
-                Path(self.record_video_dir) / "task_video" if self.record_video_dir else None
+                Path(self.record_video_dir) / "task_video"
+                if self.record_video_dir
+                else None
             ),
             record_video_size=viewport,
             locale=locale,
@@ -300,7 +302,8 @@ class BrowserEnv(gym.Env, ABC):
         # there is no concept of active page in playwright
         # https://github.com/microsoft/playwright/issues/2603
         self.context.expose_binding(
-            "browsergym_page_activated", lambda source: self._activate_page_from_js(source["page"])
+            "browsergym_page_activated",
+            lambda source: self._activate_page_from_js(source["page"]),
         )
         self.context.add_init_script(
             r"""
@@ -352,7 +355,9 @@ document.addEventListener("visibilitychange", () => {
         elif isinstance(task_goal, list):
             self.goal_object = task_goal
         else:
-            raise ValueError(f"task_goal should be of type str or list, got {task_goal.__class__}")
+            raise ValueError(
+                f"task_goal should be of type str or list, got {task_goal.__class__}"
+            )
 
         # initialize the chat
         self.chat.add_message(
@@ -429,7 +434,9 @@ document.addEventListener("visibilitychange", () => {
         logger.debug("Executing action")
         return info, send_message_to_user, report_infeasible_instructions
 
-    def step(self, action: str) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
+    def step(
+        self, action: str
+    ) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
         """
         Execute the action in the environment.
 
@@ -459,9 +466,13 @@ document.addEventListener("visibilitychange", () => {
             self.last_action_error = ""
         except Exception as e:
             self.last_action_error = f"{type(e).__name__}: {e}"
-            match = re.match("TimeoutError: Timeout ([0-9]+)ms exceeded.", self.last_action_error)
+            match = re.match(
+                "TimeoutError: Timeout ([0-9]+)ms exceeded.", self.last_action_error
+            )
             if match:
-                info["action_exec_timeout"] = float(match.groups()[0]) / 1000  # ms to sec
+                info["action_exec_timeout"] = (
+                    float(match.groups()[0]) / 1000
+                )  # ms to sec
         return self.post_step(info)
 
     def post_step(
@@ -485,7 +496,9 @@ document.addEventListener("visibilitychange", () => {
 
         info["wait_for_page_loading_start"] = time.time()
         # wait a bit (for the JavaScript callback to set the active page)
-        logger.debug(f"Waiting {self.pre_observation_delay} seconds before extracting observation")
+        logger.debug(
+            f"Waiting {self.pre_observation_delay} seconds before extracting observation"
+        )
         time.sleep(self.pre_observation_delay)  # wait for JS events to be fired
         self.context.cookies()  # trigger all waiting Playwright callbacks on the stack (hack, see https://playwright.dev/java/docs/multithreading)
 
@@ -542,7 +555,9 @@ document.addEventListener("visibilitychange", () => {
         prev_active_page = self.page
         prev_page_history = self.page_history.copy()
         # call validate
-        reward, done, user_message, info = self.task.validate(self.page, self.chat.messages)
+        reward, done, user_message, info = self.task.validate(
+            self.page, self.chat.messages
+        )
 
         # safety fix, in case validate() did mess up the active page and/or page history
         if prev_active_page != self.page or prev_page_history != self.page_history:
@@ -597,7 +612,9 @@ document.addEventListener("visibilitychange", () => {
             self.page = self.context.new_page()
 
         # if the active page got closed, get the last active page from the history
-        while self.page_history and (self.page.is_closed() or self.page not in self.context.pages):
+        while self.page_history and (
+            self.page.is_closed() or self.page not in self.context.pages
+        ):
             self.page_history.pop(self.page)  # remove active page from history
             self.page = list(self.page_history.keys())[
                 -1
@@ -611,14 +628,18 @@ document.addEventListener("visibilitychange", () => {
 
         # active page should not be closed
         if self.page.is_closed():
-            raise RuntimeError(f"Unexpected: active page has been closed ({self.page}).")
+            raise RuntimeError(
+                f"Unexpected: active page has been closed ({self.page})."
+            )
 
     def _get_obs(self):
         if self.use_raw_page_output:
             obs = {
                 "page": self.page,
                 "chat_messages": tuple(copy.deepcopy(self.chat.messages)),
-                "goal": _try_to_extract_legacy_goal(self.goal_object),  # legacy goal, deprecated
+                "goal": _try_to_extract_legacy_goal(
+                    self.goal_object
+                ),  # legacy goal, deprecated
                 "goal_object": tuple(
                     copy.deepcopy(self.goal_object)
                 ),  # new goal format, list of messages openai style
@@ -634,13 +655,19 @@ document.addEventListener("visibilitychange", () => {
         for retries_left in reversed(range(EXTRACT_OBS_MAX_TRIES)):
             try:
                 # pre-extraction, mark dom elements (set bid, set dynamic attributes like value and checked)
-                _pre_extract(self.page, tags_to_mark=self.tags_to_mark, lenient=(retries_left == 0))
+                _pre_extract(
+                    self.page,
+                    tags_to_mark=self.tags_to_mark,
+                    lenient=(retries_left == 0),
+                )
 
                 dom = extract_dom_snapshot(self.page)
                 axtree = extract_merged_axtree(self.page)
                 focused_element_bid = extract_focused_element_bid(self.page)
                 scale_factor = getattr(self.page, "_bgym_scale_factor", 1.0)
-                extra_properties = extract_dom_extra_properties(dom, scale_factor=scale_factor)
+                extra_properties = extract_dom_extra_properties(
+                    dom, scale_factor=scale_factor
+                )
             except (playwright.sync_api.Error, MarkingError) as e:
                 err_msg = str(e)
                 # try to add robustness to async events (detached / deleted frames)
@@ -669,7 +696,9 @@ document.addEventListener("visibilitychange", () => {
         # obs is generic to all tasks
         obs = {
             "chat_messages": tuple(copy.deepcopy(self.chat.messages)),
-            "goal": _try_to_extract_legacy_goal(self.goal_object),  # legacy goal, deprecated
+            "goal": _try_to_extract_legacy_goal(
+                self.goal_object
+            ),  # legacy goal, deprecated
             "goal_object": tuple(
                 copy.deepcopy(self.goal_object)
             ),  # new goal format, list of messages openai style

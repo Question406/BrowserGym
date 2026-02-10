@@ -52,7 +52,9 @@ class GenericWebArenaTask(AbstractBrowserTask):
         # read the list of all webarena task configs
         import webarena
 
-        all_configs_str = importlib.resources.files(webarena).joinpath("test.raw.json").read_text()
+        all_configs_str = (
+            importlib.resources.files(webarena).joinpath("test.raw.json").read_text()
+        )
 
         # substitute URLs
         for pattern, url_key in {
@@ -63,7 +65,9 @@ class GenericWebArenaTask(AbstractBrowserTask):
             "__WIKIPEDIA__": "wikipedia",
             "__MAP__": "map",
         }.items():
-            all_configs_str = all_configs_str.replace(pattern, self.webarena_instance.urls[url_key])
+            all_configs_str = all_configs_str.replace(
+                pattern, self.webarena_instance.urls[url_key]
+            )
 
         # load all task configs to JSON
         all_configs = json.loads(all_configs_str)
@@ -71,7 +75,9 @@ class GenericWebArenaTask(AbstractBrowserTask):
         # keep only the desired task configs
         if intent_template_id is not None:
             task_configs = [
-                conf for conf in all_configs if conf["intent_template_id"] == intent_template_id
+                conf
+                for conf in all_configs
+                if conf["intent_template_id"] == intent_template_id
             ]
             if not task_configs:
                 raise ValueError(
@@ -173,11 +179,14 @@ If you believe the task is impossible to complete, provide the answer "N/A".
         # safeguard: check that all open tabs are either blank or within the list of WebArena URLs
         authorized_locations = ["newtab", ""] + [
             urllib.parse.urlparse(url).netloc
-            for url in [*self.webarena_instance.urls.values(), self.webarena_instance.home_url]
+            for url in [
+                *self.webarena_instance.urls.values(),
+                self.webarena_instance.home_url,
+            ]
         ]
         for open_page in page.context.pages:
             page_location = urllib.parse.urlparse(open_page.url).netloc
-            if not page_location in authorized_locations:
+            if page_location not in authorized_locations:
                 return 0, True, "", {"error": "Unauthorized url, terminating task"}
 
         # import webarena dynamically
@@ -185,7 +194,10 @@ If you believe the task is impossible to complete, provide the answer "N/A".
 
         # if any, use the last assistant message as the stop answer for webarena
         if chat_messages and chat_messages[-1]["role"] == "assistant":
-            last_action = {"action_type": ActionTypes.STOP, "answer": chat_messages[-1]["message"]}
+            last_action = {
+                "action_type": ActionTypes.STOP,
+                "answer": chat_messages[-1]["message"],
+            }
         elif chat_messages and chat_messages[-1]["role"] == "infeasible":
             last_action = {"action_type": ActionTypes.STOP, "answer": "N/A"}
         else:
